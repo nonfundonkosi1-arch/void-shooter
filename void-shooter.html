@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VOID SHOOTER</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Google Login -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+  font-family:'Courier New',monospace;
+  overflow:hidden;
+  color:#fff;
+}
+#ui{
+  display:flex;
+  gap:40px;
+  margin-bottom:10px;
+  font-size:14px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+}
+.stat{color:#888}
+.stat span{color:#00ffff;font-weight:bold}
+#lives-display{color:#ff4466;font-size:18px;letter-spacing:4px}
+canvas{
+  border:1px solid #1a1a2e;
+  box-shadow:0 0 40px #0ff2,0 0 80px #0002;
+  border-radius:4px;
+  display:block;
+}
+#overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.85);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:16px;
+  text-align:center;
+  z-index:10;
+}
+#overlay.hidden{display:none}
+.title{
+  font-size:48px;
+  font-weight:900;
+  letter-spacing:8px;
+  color:#00ffff;
+  text-shadow:0 0 20px #0ff,0 0 40px #0ff8;
+}
+.start-btn{
+  padding:12px 40px;
+  background:transparent;
+  border:2px solid #00ffff;
+  color:#00ffff;
+  font-family:'Courier New',monospace;
+  font-size:14px;
+  letter-spacing:4px;
+  cursor:pointer;
+  text-transform:uppercase;
+  transition:all .2s;
+  box-shadow:0 0 10px #0ff4;
+}
+.start-btn:hover{background:#00ffff22;box-shadow:0 0 20px #0ff8}
+#userName{
+  font-size:13px;
+  color:#00ff88;
+  letter-spacing:3px;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="stat">Score <span id="score-display">0</span></div>
+  <div class="stat">Level <span id="level-display">1</span></div>
+  <div class="stat">Lives <span id="lives-display">♥♥♥</span></div>
+  <div class="stat">Hi-Score <span id="hi-display">0</span></div>
+</div>
+
+<div style="position:relative">
+  <canvas id="c" width="520" height="620"></canvas>
+
+  <div id="overlay">
+    <div class="title">VOID SHOOTER</div>
+
+    <div id="userName"></div>
+
+    <!-- Google Login -->
+    <div id="g_id_onload"
+         data-client_id="YOUR_GOOGLE_CLIENT_ID"
+         data-callback="handleCredentialResponse">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline">
+    </div>
+
+    <button class="start-btn" id="launchBtn">[ LAUNCH ]</button>
+    <button class="start-btn" id="newGameBtn" style="display:none;">[ NEW GAME ]</button>
+  </div>
+</div>
+
+<script>
+const c=document.getElementById('c');
+const ctx=c.getContext('2d');
+const W=c.width,H=c.height;
+
+/* Persistent High Score */
+let hiScore=localStorage.getItem("void_hiScore")?
+parseInt(localStorage.getItem("void_hiScore")):0;
+
+let score=0,lives=3,level=1,gameRunning=false;
+
+document.getElementById("hi-display").textContent=hiScore;
+
+/* Stars */
+const stars=Array.from({length:150},()=>({
+  x:Math.random()*W,
+  y:Math.random()*H,
+  r:Math.random()*1.5+0.2,
+  s:Math.random()*0.5+0.2
+}));
+
+/* Player */
+const player={
+  x:W/2,y:H-80,w:28,h:32,speed:5,
+  bullets:[]
+};
+
+const keys={};
+document.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='Space')e.preventDefault();
+});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+
+function startGame(){
+  score=0;lives=3;level=1;
+  player.x=W/2;player.y=H-80;
+  player.bullets=[];
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("newGameBtn").style.display="none";
+  gameRunning=true;
+  loop();
+}
+
+function endGame(){
+  gameRunning=false;
+
+  if(score>hiScore){
+    hiScore=score;
+    localStorage.setItem("void_hiScore",hiScore);
+  }
+
+  document.getElementById("hi-display").textContent=hiScore;
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("newGameBtn").style.display="inline-block";
+}
+
+document.getElementById("launchBtn").addEventListener("click",startGame);
+document.getElementById("newGameBtn").addEventListener("click",startGame);
+
+/* Update */
+function update(){
+  if(!gameRunning)return;
+
+  stars.forEach(s=>{
+    s.y+=s.s;
+    if(s.y>H)s.y=0;
+  });
+
+  if(keys['ArrowLeft']&&player.x>20)player.x-=player.speed;
+  if(keys['ArrowRight']&&player.x<W-20)player.x+=player.speed;
+
+  if(keys['Space']){
+    player.bullets.push({x:player.x,y:player.y-16});
+  }
+
+  player.bullets.forEach(b=>b.y-=10);
+  player.bullets=player.bullets.filter(b=>b.y>-10);
+
+  score++;
+  if(score>3000)endGame();
+
+  document.getElementById("score-display").textContent=score;
+  document.getElementById("level-display").textContent=level;
+  document.getElementById("lives-display").textContent="♥".repeat(lives);
+}
+
+/* Draw */
+function draw(){
+  ctx.fillStyle="#000008";
+  ctx.fillRect(0,0,W,H);
+
+  stars.forEach(s=>{
+    ctx.fillStyle="#fff";
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  ctx.shadowBlur=18;
+  ctx.shadowColor="#00ffff";
+  ctx.fillStyle="#00ccff";
+  ctx.beginPath();
+  ctx.moveTo(player.x,player.y-16);
+  ctx.lineTo(player.x+12,player.y+14);
+  ctx.lineTo(player.x-12,player.y+14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle="#00ffff";
+  player.bullets.forEach(b=>{
+    ctx.fillRect(b.x-2,b.y-8,4,8);
+  });
+}
+
+/* Loop */
+function loop(){
+  update();
+  draw();
+  if(gameRunning)requestAnimationFrame(loop);
+}
+
+draw();
+
+/* Google Login */
+function handleCredentialResponse(response){
+  const data=parseJwt(response.credential);
+  localStorage.setItem("void_user",JSON.stringify(data));
+  document.getElementById("userName").textContent=
+    "WELCOME "+data.name.toUpperCase();
+}
+
+function parseJwt(token){
+  const base64Url=token.split('.')[1];
+  const base64=base64Url.replace(/-/g,'+').replace(/_/g,'/');
+  const jsonPayload=decodeURIComponent(
+    atob(base64).split('').map(c=>
+      '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)
+    ).join('')
+  );
+  return JSON.parse(jsonPayload);
+}
+
+const savedUser=localStorage.getItem("void_user");
+if(savedUser){
+  const user=JSON.parse(savedUser);
+  document.getElementById("userName").textContent=
+    "WELCOME "+user.name.toUpperCase();
+}
+</script>
+
+</body>
+</html>
